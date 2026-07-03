@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 
+type WorkflowDefinition = { id: string; name: string; module: string };
 type WorkflowInstance = {
   id: string;
-  definition: { name: string; module: string };
+  definition: WorkflowDefinition;
   referenceId: string | null;
   status: string;
   currentNode: string;
@@ -14,71 +16,83 @@ type WorkflowInstance = {
 
 export default function WorkflowsDashboard() {
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([]);
+  const [definitions, setDefinitions] = useState<WorkflowDefinition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [definitionId, setDefinitionId] = useState<string | null>(null);
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDefId, setSelectedDefId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchWorkflows = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/workflows');
-      if (res.ok) {
-        const data = await res.json();
-        setWorkflows(data);
-        
-        // Sneaky way to get the definition ID for our mock trigger if it exists
-        if (data.length > 0 && data[0].definition) {
-          setDefinitionId(data[0].definition.id);
-        } else {
-          // If no instances, we can't get the definition ID this easily, but the API seeds it.
-          // Let's just fetch it normally in a real app.
-        }
-      }
+      if (res.ok) setWorkflows(await res.json());
     } catch (e) {
       console.error(e);
     }
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchWorkflows();
-  }, []);
-
-  const triggerMockWorkflow = async () => {
+  const fetchDefinitions = async () => {
     try {
-      // For this mock, we just trigger a generic workflow. In a real app we'd fetch definitions.
-      // But we can trigger without definitionId and let the backend error out if needed, or we just hardcode fetching definition.
-      // Actually, let's fetch definitions directly if we really needed to, but we'll try to find the HR definition.
-      // Since our API requires definitionId, let's hardcode a temporary fix: we'll call a specific seed route or just modify our POST to find the first definition if none provided.
-      // Let's assume the API handles it or we send the known ID.
-      
-      let targetDefId = definitionId;
-      if (!targetDefId) {
-        alert("Please refresh to ensure definitions are loaded.");
-        return;
+      const res = await fetch('/api/workflows/definitions');
+      if (res.ok) {
+        const data = await res.json();
+        setDefinitions(data);
+        if (data.length > 0) setSelectedDefId(data[0].id);
       }
-      
-      await fetch('/api/workflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          definitionId: targetDefId,
-          referenceId: `REQ-${Math.floor(Math.random() * 9000) + 1000}`
-        })
-      });
-      fetchWorkflows();
     } catch (e) {
       console.error(e);
     }
   };
 
+  useEffect(() => {
+    fetchWorkflows();
+  }, []);
+
+  const openModal = () => {
+    fetchDefinitions();
+    setIsModalOpen(true);
+  };
+
+  const submitMockWorkflow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDefId) return alert("Please select a workflow definition first.");
+    
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          definitionId: selectedDefId,
+          referenceId: `REQ-${Math.floor(Math.random() * 9000) + 1000}`
+        })
+      });
+      if (res.ok) {
+        setIsModalOpen(false);
+        fetchWorkflows();
+      } else {
+        alert("Failed. If on Vercel, SQLite writes are restricted.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error saving.");
+    }
+    setSubmitting(false);
+  };
+
   const handleAction = async (instanceId: string, taskId: string, action: 'Approved' | 'Rejected') => {
     try {
-      await fetch(`/api/workflows/${instanceId}/action`, {
+      const res = await fetch(`/api/workflows/${instanceId}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, taskId, comments: `Action taken from Dashboard: ${action}` })
       });
-      fetchWorkflows();
+      if (res.ok) fetchWorkflows();
+      else alert("Failed to save action. SQLite is read-only on Vercel.");
     } catch (e) {
       console.error(e);
     }
@@ -94,20 +108,28 @@ export default function WorkflowsDashboard() {
   };
 
   return (
-    <div className="p-gutter h-full overflow-auto custom-scrollbar">
+    <div className="p-gutter h-full overflow-auto custom-scrollbar relative">
       <div className="flex justify-between items-center mb-stack-lg">
         <div>
           <h1 className="text-h1 font-h1 text-primary mb-2">Workflow Approvals</h1>
           <p className="text-body-md text-on-surface-variant">Review and manage pending requests</p>
         </div>
-        <button 
-          onClick={triggerMockWorkflow}
-          disabled={!definitionId && workflows.length > 0} 
-          className="bg-primary text-on-primary px-4 py-2 rounded font-label-md flex items-center gap-2 hover:bg-primary-container transition-colors disabled:opacity-50"
-        >
-          <span className="material-symbols-outlined">add_task</span>
-          Create Mock Leave Request
-        </button>
+        <div className="flex gap-3">
+          <Link 
+            href="/admin/workflows/setup"
+            className="border border-outline-variant text-on-surface-variant px-4 py-2 rounded font-label-md flex items-center gap-2 hover:bg-surface-container transition-colors"
+          >
+            <span className="material-symbols-outlined">settings</span>
+            Workflow Setup
+          </Link>
+          <button 
+            onClick={openModal}
+            className="bg-primary text-on-primary px-4 py-2 rounded font-label-md flex items-center gap-2 hover:bg-primary-container transition-colors"
+          >
+            <span className="material-symbols-outlined">add_task</span>
+            Create Request
+          </button>
+        </div>
       </div>
 
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
@@ -176,7 +198,7 @@ export default function WorkflowsDashboard() {
               ) : (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-on-surface-variant">
-                    No active workflows found. Click the button above to create a mock request.
+                    No active workflows found. Click the button above to create a request.
                   </td>
                 </tr>
               )}
@@ -184,6 +206,64 @@ export default function WorkflowsDashboard() {
           </table>
         </div>
       </div>
+
+      {/* CREATE MOCK REQUEST MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-surface-container-lowest rounded-xl max-w-md w-full shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-outline-variant flex justify-between items-center">
+              <h2 className="text-h3 font-h3 text-on-surface">Trigger Request</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-on-surface-variant hover:text-error transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <form onSubmit={submitMockWorkflow} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-2">Select Workflow Type</label>
+                  {definitions.length > 0 ? (
+                    <select 
+                      value={selectedDefId}
+                      onChange={(e) => setSelectedDefId(e.target.value)}
+                      className="w-full bg-surface-container border border-outline-variant rounded p-3 text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    >
+                      {definitions.map(d => (
+                        <option key={d.id} value={d.id}>[{d.module}] {d.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 bg-error-container/20 text-error rounded text-body-sm border border-error-container">
+                      No workflows exist yet. Please go to Workflow Setup to create one first.
+                    </div>
+                  )}
+                </div>
+                
+                <p className="text-body-sm text-on-surface-variant pt-2">
+                  * Note: In a full implementation, selecting a type would open the specific form for that request. For this demo, it will instantly generate a mock submission.
+                </p>
+              </div>
+              
+              <div className="mt-8 flex justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded text-label-md font-label-md text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={submitting || definitions.length === 0}
+                  className="px-4 py-2 bg-primary text-on-primary rounded text-label-md font-label-md hover:bg-primary-container transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Triggering...' : 'Start Workflow'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
