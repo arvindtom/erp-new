@@ -19,14 +19,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Update the instance overall status
     const updatedInstance = await prisma.workflowInstance.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: { status: action }
     });
 
     // Log the audit trail
     await prisma.workflowAuditLog.create({
       data: {
-        instanceId: params.id,
+        instanceId: resolvedParams.id,
         taskId,
         action,
         actor: 'Current User',
