@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model WorkflowDefinition {
+  id          String   @id @default(cuid())
+  name        String
+  module      String
+  isActive    Boolean  @default(true)
+  instances   WorkflowInstance[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkflowInstance {
+  id           String   @id @default(cuid())
+  definitionId String
+  definition   WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  referenceId  String?
+  status       String   @default("Pending") // Pending, Approved, Rejected, Completed
+  currentNode  String
+  tasks        WorkflowTask[]
+  auditLogs    WorkflowAuditLog[]
+  startedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WorkflowTask {
+  id           String   @id @default(cuid())
+  instanceId   String
+  instance     WorkflowInstance @relation(fields: [instanceId], references: [id])
+  assignedRole String?
+  assignedUser String?
+  status       String   @default("Pending") // Pending, Approved, Rejected
+  auditLogs    WorkflowAuditLog[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WorkflowAuditLog {
+  id           String   @id @default(cuid())
+  instanceId   String
+  instance     WorkflowInstance @relation(fields: [instanceId], references: [id])
+  taskId       String?
+  task         WorkflowTask? @relation(fields: [taskId], references: [id])
+  action       String
+  actor        String
+  comments     String?
+  timestamp    DateTime @default(now())
+}

@@ -10,6 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       { name: "Academics", icon: "book", href: "/admin/calendar" },
       { name: "Finance", icon: "payments", href: "#" },
       { name: "Teachers", icon: "group", href: "#" },
+      { name: "Workflows", icon: "account_tree", href: "/admin/workflows" },
       { name: "Reports", icon: "analytics", href: "#" },
       { name: "Settings", icon: "settings", href: "#" },
     ],
