@@ -1,14 +1,63 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+
+type Payslip = {
+  id: string;
+  employeeName: string;
+  role: string;
+  amount: number;
+  status: string;
+  date: string;
+};
 
 export default function PayrollPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [payslips, setPayslips] = useState<Payslip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const mockPayroll = [
-    { id: "PAY-001", employee: "Dr. Alan Grant", role: "Science Teacher", amount: "$4,500", status: "Processed", date: "2024-09-30" },
-    { id: "PAY-002", employee: "Ellie Sattler", role: "Biology Teacher", amount: "$4,200", status: "Pending", date: "2024-10-30" },
-    { id: "PAY-003", employee: "Ian Malcolm", role: "Math Teacher", amount: "$4,600", status: "Pending", date: "2024-10-30" },
-  ];
+  const [formData, setFormData] = useState({
+    employeeName: '',
+    role: 'Teacher',
+    amount: ''
+  });
+
+  const fetchPayslips = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/hr/payroll');
+      if (res.ok) setPayslips(await res.json());
+    } catch (e) {
+      console.error(e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchPayslips();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/hr/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setIsModalOpen(false);
+        setFormData({ employeeName: '', role: 'Teacher', amount: '' });
+        fetchPayslips();
+      } else {
+        alert("Failed to submit. SQLite is read-only on Vercel.");
+      }
+    } catch (e) {
+      alert("Error submitting.");
+    }
+    setSubmitting(false);
+  };
 
   return (
     <div className="p-gutter h-full overflow-auto custom-scrollbar">
@@ -38,24 +87,30 @@ export default function PayrollPage() {
             </tr>
           </thead>
           <tbody>
-            {mockPayroll.map((pay) => (
-              <tr key={pay.id} className="border-b border-outline-variant hover:bg-surface-container-lowest/50">
-                <td className="p-4 font-bold text-primary-fixed-variant">{pay.id}</td>
-                <td className="p-4">
-                  <div className="font-bold text-on-surface">{pay.employee}</div>
-                  <div className="text-body-sm text-on-surface-variant">{pay.role}</div>
-                </td>
-                <td className="p-4 font-bold text-on-surface">{pay.amount}</td>
-                <td className="p-4 text-on-surface-variant">{new Date(pay.date).toLocaleDateString()}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider rounded border ${
-                    pay.status === 'Processed' ? 'bg-secondary-container/20 text-on-secondary-container border-secondary-container' : 'bg-tertiary-container/20 text-on-tertiary-container border-tertiary-container'
-                  }`}>
-                    {pay.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={5} className="p-8 text-center text-on-surface-variant">Loading payslips...</td></tr>
+            ) : payslips.length > 0 ? (
+              payslips.map((pay) => (
+                <tr key={pay.id} className="border-b border-outline-variant hover:bg-surface-container-lowest/50">
+                  <td className="p-4 font-bold text-primary-fixed-variant">{pay.id.slice(-6).toUpperCase()}</td>
+                  <td className="p-4">
+                    <div className="font-bold text-on-surface">{pay.employeeName}</div>
+                    <div className="text-body-sm text-on-surface-variant">{pay.role}</div>
+                  </td>
+                  <td className="p-4 font-bold text-on-surface">${pay.amount.toLocaleString()}</td>
+                  <td className="p-4 text-on-surface-variant">{new Date(pay.date).toLocaleDateString()}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider rounded border ${
+                      pay.status === 'Processed' ? 'bg-secondary-container/20 text-on-secondary-container border-secondary-container' : 'bg-tertiary-container/20 text-on-tertiary-container border-tertiary-container'
+                    }`}>
+                      {pay.status}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan={5} className="p-8 text-center text-on-surface-variant">No payslips found.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -67,17 +122,28 @@ export default function PayrollPage() {
               <h2 className="text-h3 font-h3 text-on-surface">Generate Payslip</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-on-surface-variant hover:text-error"><span className="material-symbols-outlined">close</span></button>
             </div>
-            <div className="p-6">
-              <p className="text-body-md text-on-surface-variant mb-4">Select an employee to generate and process a new payslip for this month.</p>
-              <select className="w-full bg-surface-container border border-outline-variant rounded p-3 mb-4">
-                <option>John Hammond (Principal)</option>
-                <option>Ray Arnold (IT)</option>
-              </select>
-              <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded">Cancel</button>
-                <button className="px-4 py-2 bg-primary text-on-primary rounded">Generate</button>
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-2">Employee Name</label>
+                  <input required value={formData.employeeName} onChange={e => setFormData({...formData, employeeName: e.target.value})} type="text" className="w-full bg-surface-container border border-outline-variant rounded p-3" />
+                </div>
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-2">Role</label>
+                  <input required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} type="text" className="w-full bg-surface-container border border-outline-variant rounded p-3" />
+                </div>
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-2">Net Salary Amount ($)</label>
+                  <input required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} type="number" className="w-full bg-surface-container border border-outline-variant rounded p-3" />
+                </div>
               </div>
-            </div>
+              <div className="flex justify-end gap-3 mt-8">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded">Cancel</button>
+                <button disabled={submitting} type="submit" className="px-4 py-2 bg-primary text-on-primary rounded disabled:opacity-50">
+                  {submitting ? 'Generating...' : 'Generate'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

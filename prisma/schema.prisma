@@ -51,5 +51,108 @@ model WorkflowAuditLog {
   action       String
   actor        String
   comments     String?
-  timestamp    DateTime @default(now())
+}
+
+// ==========================================
+// ERP MODULES EXPANSION
+// ==========================================
+
+model AdmissionApplication {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  dob       String
+  grade     String
+  guardian  String
+  phone     String
+  status    String   @default("Pending") // Pending, Approved, Rejected
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FeeInvoice {
+  id          String   @id @default(cuid())
+  studentId   String?
+  studentName String
+  grade       String
+  description String
+  amount      Float
+  status      String   @default("Pending") // Pending, Paid, Overdue
+  date        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LedgerTransaction {
+  id        String   @id @default(cuid())
+  type      String   // Income, Expense
+  category  String
+  amount    Float
+  account   String?
+  date      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  salary    Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payslip {
+  id           String   @id @default(cuid())
+  employeeId   String?
+  employeeName String
+  role         String
+  amount       Float
+  date         String
+  status       String   @default("Pending") // Pending, Processed
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AssetItem {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  quantity  Int
+  location  String
+  status    String   @default("In Stock") // In Stock, Low Stock
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TransportRoute {
+  id        String   @id @default(cuid())
+  name      String
+  vehicle   String
+  driver    String
+  stops     Int
+  status    String   @default("Active") // Active, Maintenance
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LibraryBook {
+  id        String   @id @default(cuid())
+  title     String
+  author    String
+  category  String
+  status    String   @default("Available") // Available, Issued
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  subject   String
+  user      String
+  priority  String   @default("Medium") // High, Medium, Low
+  status    String   @default("Open") // Open, In Progress, Resolved
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
